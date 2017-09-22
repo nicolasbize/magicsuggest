@@ -292,6 +292,11 @@
             selectionStacked: false,
 
             /**
+             * An optional element to append combobox.
+             */
+            comboboxContainer : null,
+
+            /**
              * Direction used for sorting. Only 'asc' and 'desc' are valid values
              */
             sortDir: 'asc',
@@ -357,7 +362,18 @@
             /**
              * type to validate against
              */
-            vtype: null
+            vtype: null,
+            /**
+            *format ajax result
+            */
+            formatResultAjax : function(asyncData){
+                return JSON.parse(asyncData)
+            },
+            /*
+            *filter result in client or not
+            */
+            useClientFilter : true
+
         };
 
         var conf = $.extend({},options);
@@ -447,7 +463,13 @@
         this.expand = function()
         {
             if (!cfg.expanded && (this.input.val().length >= cfg.minChars || this.combobox.children().size() > 0)) {
-                this.combobox.appendTo(this.container);
+                this.combobox.appendTo( cfg.comboboxContainer || this.container );
+                if ( cfg.comboboxContainer ) {
+                    var top = this.container.offset().top + this.container.outerHeight( true ) + 2;
+                    var left = this.container.offset().left;
+                    var width = this.container.outerWidth( true );
+                    this.combobox.css( { "top" : top, "left" : left, "width" : width } );
+                }
                 self._processSuggestions();
                 cfg.expanded = true;
                 $(this).trigger('expand', [this]);
@@ -634,6 +656,16 @@
         this.setDataUrlParams = function(params)
         {
             cfg.dataUrlParams = $.extend({},params);
+        };
+
+        /**
+         * Sets placeholder
+         * @param placeholder
+         */
+        this.setPlaceholder = function(placeholder)
+        {
+            cfg.placeholder = placeholder;
+            this.input.attr('placeholder', cfg.placeholder);
         };
 
         /**********  PRIVATE ************/
@@ -826,7 +858,7 @@
                             data: params,
                             beforeSend: cfg.beforeSend,
                             success: function(asyncData){
-                                json = typeof(asyncData) === 'string' ? JSON.parse(asyncData) : asyncData;
+                                json = typeof(asyncData) === 'string' ? cfg.formatResultAjax(asyncData) : asyncData;
                                 self._processSuggestions(json);
                                 $(ms).trigger('load', [ms, json]);
                                 if(self._asyncValues){
@@ -1117,7 +1149,7 @@
                     newSuggestions = [],
                     selectedValues = ms.getValue();
                 // filter the data according to given input
-                if(q.length > 0) {
+                if(cfg.useClientFilter && q.length > 0) {
                     $.each(data, function(index, obj) {
                         var name = obj[cfg.displayField];
                         if((cfg.matchCase === true && name.indexOf(q) > -1) ||
