@@ -405,8 +405,11 @@
         /**
          * Collapse the drop down part of the combo
          */
-        this.collapse = function()
+        this.collapse = function(force)
         {
+            if (cfg.neverCollapse && !force) {
+                return;
+            }
             if (cfg.expanded === true) {
                 this.combobox.detach();
                 cfg.expanded = false;
@@ -447,7 +450,12 @@
         this.expand = function()
         {
             if (!cfg.expanded && (this.input.val().length >= cfg.minChars || this.combobox.children().size() > 0)) {
-                this.combobox.appendTo(this.container);
+                if (cfg.container) {
+                    var containerToAdd = (typeof cfg.container === 'string' ? $(cfg.container) : cfg.container);
+                    this.combobox.appendTo(containerToAdd);
+                } else {
+                    this.combobox.appendTo(this.container);
+                }
                 self._processSuggestions();
                 cfg.expanded = true;
                 $(this).trigger('expand', [this]);
@@ -655,6 +663,9 @@
                 DOWNARROW: 40,
                 COMMA: 188
             };
+            if (cfg.languageUsesComma) {
+                delete KEYCODES.COMMA;
+            }
 
         var self = {
 
@@ -888,9 +899,15 @@
                 ms.input.click($.proxy(handlers._onInputClick, this));
 
                 // holds the suggestions. will always be placed on focus
-                ms.combobox = $('<div/>', {
-                    'class': 'ms-res-ctn dropdown-menu'
-                }).height(cfg.maxDropHeight);
+                if (cfg.container) {
+                    ms.combobox = $('<div/>', {
+                        'class': 'ms-res-ctn'
+                    });
+                } else {
+                    ms.combobox = $('<div/>', {
+                        'class': 'ms-res-ctn dropdown-menu'
+                    }).height(cfg.maxDropHeight);
+                }
 
                 // bind the onclick and mouseover using delegated events (needs jQuery >= 1.7)
                 ms.combobox.on('click', 'div.ms-res-item', $.proxy(handlers._onComboItemSelected, this));
