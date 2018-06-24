@@ -115,6 +115,11 @@
             editable: true,
 
             /**
+             * Allow to modify a tag by clicking on edit icon. It only can be enabled if only allowFreeEntries is true.
+             */
+            editModeEnabled: false,
+
+            /**
              * Set starting state for combo.
              */
             expanded: false,
@@ -538,7 +543,7 @@
                 }
             });
             if (valuechanged === true) {
-                self._renderSelection();
+				self._renderSelection();
                 if(isSilent !== true){
                     $(this).trigger('selectionchange', [this, this.getSelection()]);
                 }
@@ -567,6 +572,15 @@
             cfg.data = data;
             self._processSuggestions();
         };
+
+        /**
+		 * Set the maximum allowed selections
+		 * @param {integer} name
+		 */
+		this.setMaxSelection = function(max)
+		{
+			cfg.maxSelection = max;
+		};
 
         /**
          * Sets the name for the input field so it can be fetched in the form
@@ -644,6 +658,7 @@
             _groups = null,
             _cbData = [],
             _ctrlDown = false,
+			_cntInMf = false, // Content is in modification mode.
             KEYCODES = {
                 BACKSPACE: 8,
                 TAB: 9,
@@ -813,7 +828,7 @@
                 var json = null, data = source || cfg.data;
                 if(data !== null) {
                     if(typeof(data) === 'function'){
-                        data = data.call(ms, ms.getRawValue());
+                        data = data.call(ms, ms.getRawValue(),cfg);
                     }
                     if(typeof(data) === 'string') { // get results from ajax
                         $(ms).trigger('beforeload', [ms]);
@@ -956,7 +971,7 @@
                 $(window).on('resize', $.proxy(handlers._onWindowResized, this));
 
                 // do not perform an initial call if we are using ajax unless we have initial values
-                if(cfg.value !== null || cfg.data !== null){
+                if((cfg.value !== null || cfg.data !== null) && ms.container.is(':visible')){
                     if(typeof(cfg.data) === 'string'){
                         self._asyncValues = cfg.value;
                         self._processSuggestions();
@@ -1023,7 +1038,7 @@
 
                 $.each(_selection, function(index, value){
 
-                    var selectedItemEl, delItemEl,
+                    var selectedItemEl, delItemEl, editItemEl,
                         selectedItemHtml = cfg.selectionRenderer !== null ? cfg.selectionRenderer.call(ref, value) : value[cfg.displayField];
 
                     var validCls = self._validateSingleItem(value[cfg.displayField]) ? '' : ' ms-sel-invalid';
@@ -1048,7 +1063,14 @@
                             }).data('json', value).appendTo(selectedItemEl);
 
                             delItemEl.on('click', $.proxy(handlers._onTagTriggerClick, ref));
-                        }
+
+							if (cfg.allowFreeEntries === true && cfg.editModeEnabled === true && !Number.isInteger(parseInt(value.id))){
+                                editItemEl = $('<span/>', {
+                                    'class': 'ms-edit-btn'
+                                }).data('json', value).prependTo(selectedItemEl);
+                                editItemEl.on('click', $.proxy(handlers._onTagEditTriggerClick, ref));
+                            }
+						}
                     }
 
                     items.push(selectedItemEl);
@@ -1069,10 +1091,11 @@
                 });
                 ms._valueContainer.appendTo(ms.selectionContainer);
 
-                if(cfg.selectionPosition === 'inner' && !cfg.selectionContainer) {
-                    ms.input.width(0);
-                    inputOffset = ms.input.offset().left - ms.selectionContainer.offset().left;
-                    w = ms.container.width() - inputOffset - 42;
+                if(cfg.selectionPosition === 'inner' && !cfg.selectionContainer && (ms.container.is(':visible') || ms.getValue().length>0)) {
+					var inputPadding = ms.input.outerWidth(true) - ms.input.width();
+					ms.input.width(0);
+					inputOffset = Math.max(0,ms.input.offset().left - ms.selectionContainer.offset().left);
+					w = ms.container.width() - inputOffset - (cfg.hideTrigger ? inputPadding : 42);
                     ms.input.width(w);
                 }
 
@@ -1226,6 +1249,7 @@
             _onBlur: function() {
                 ms.container.removeClass('ms-ctn-focus');
                 ms.collapse();
+				_cntInMf = false;
                 _hasFocus = false;
                 if(ms.getRawValue() !== '' && cfg.allowFreeEntries === true){
                     var obj = {};
@@ -1276,7 +1300,10 @@
              * @private
              */
             _onFocus: function() {
-                ms.input.trigger('focus');
+                if (!_cntInMf)
+                {
+	                ms.input.trigger('focus');
+                }
             },
 
             /**
@@ -1284,7 +1311,7 @@
              * @private
              */
             _onInputClick: function(){
-                if (ms.isDisabled() === false && _hasFocus) {
+                if (ms.isDisabled() === false && _hasFocus && !_cntInMf) {
                     if (cfg.toggleOnClick === true) {
                         if (cfg.expanded){
                             ms.collapse();
@@ -1300,7 +1327,7 @@
              * @private
              */
             _onInputFocus: function() {
-                if(ms.isDisabled() === false && !_hasFocus) {
+                if(ms.isDisabled() === false && !_hasFocus && !_cntInMf) {
                     _hasFocus = true;
                     ms.container.addClass('ms-ctn-focus');
                     ms.container.removeClass(cfg.invalidCls);
@@ -1316,7 +1343,7 @@
                         self._updateHelper(cfg.minCharsRenderer.call(this, cfg.minChars - curLength));
                     }
 
-                    self._renderSelection();
+                    setTimeout(function(){self._renderSelection()},400);
                     $(ms).trigger('focus', [ms]);
                 }
             },
@@ -1329,6 +1356,7 @@
              * @private
              */
             _onKeyDown: function(e) {
+				if (_cntInMf) return;
                 // check how tab should be handled
                 var active = ms.combobox.find('.ms-res-item-active:not(.ms-res-item-disabled):first'),
                     freeInput = ms.input.val();
@@ -1389,6 +1417,7 @@
              * @private
              */
             _onKeyUp: function(e) {
+                if (_cntInMf) return;
                 var freeInput = ms.getRawValue(),
                     inputValid = $.trim(ms.input.val()).length > 0 &&
                         (!cfg.maxEntryLength || $.trim(ms.input.val()).length <= cfg.maxEntryLength),
@@ -1477,6 +1506,70 @@
              */
             _onTagTriggerClick: function(e) {
                 ms.removeFromSelection($(e.currentTarget).data('json'));
+            },
+
+            /**
+             * Triggerd when clicking on edit button upon selected item in order to edit its content
+             * @param e
+             * @private
+             */
+            _onTagEditTriggerClick: function(e) {
+                var itemData = $(e.currentTarget).data('json');
+                e.stopImmediatePropagation();
+                if (ms.input.val() === '')
+                {
+                    var index = $.inArray(itemData.id, ms.getValue());
+                    var el = $(ms.selectionContainer.children().get(index));
+                    var deltaW = el.width() - (el.find('.ms-close-btn').width()+ el.find('.ms-edit-btn').width());
+                    el.off();
+                    el.children().hide();
+
+                    var __onConfirmCallback = function () {
+                        var values = ms.getValue().slice();
+                        var selection = ms.getSelection().slice();
+                        var scrollTop = ms.selectionContainer[0].scrollTop;
+                        values[index] = selection[index].id = selection[index].label = input.val();
+                        ms.setValue(values);
+                        ms.setSelection(selection);
+                        ms.selectionContainer.scrollTop(scrollTop);
+                        _cntInMf = false;
+                    };
+                    var __onCancelCallback = function (e)
+                    {
+                        _cntInMf = false;
+                        handlers._onBlur();
+                        e.stopImmediatePropagation();
+                    };
+                    var editor = $('<div class="ms-editor-wrap">').appendTo(el);
+                    var input = $('<input type="text">')
+                            .val(itemData.id)
+                            .select()
+                            .on('focus', function(){_cntInMf = true;})
+                            .on('keydown', function(e){
+                                e.stopImmediatePropagation();
+                                switch(e.keyCode)
+                                {
+                                    case KEYCODES.TAB:
+                                    case KEYCODES.ENTER:
+                                        e.preventDefault();
+                                        __onConfirmCallback();
+                                        break;
+                                    case KEYCODES.ESC:
+                                        __onCancelCallback();
+                                }
+                            })
+                            .appendTo(editor);
+                    var check = $('<span class="ms-check-btn"/>')
+                            .on('click', $.proxy(__onConfirmCallback, this))
+                            .appendTo(editor);
+                    var cancel = $('<span class="ms-close-btn"/>')
+                            .on('click', $.proxy(__onCancelCallback, this))
+                            .appendTo(editor);
+                    input.width(deltaW);
+                    input.height(el.children().height());
+                    $(ms).trigger('editorClicked', [ms, e]);
+                    _cntInMf = true; // item is in modification mode
+                }
             },
 
             /**

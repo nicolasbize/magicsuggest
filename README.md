@@ -1,3 +1,9 @@
+Magicsuggest Customized for EGroupware
+======================================
+- Add edit mode feature in order to be able to modify an already entered tag (items with value integer are not editable)
+
+
+
 Looking for maintainers
 -----------------------
 Please see: https://github.com/nicolasbize/magicsuggest/issues/307
