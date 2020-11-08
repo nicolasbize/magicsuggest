@@ -1252,7 +1252,10 @@
                 ms.container.removeClass('ms-ctn-focus');
                 ms.collapse();
                 _hasFocus = false;
-                if(ms.getRawValue() !== '' && cfg.allowFreeEntries === true){
+ 		var inputValid = $.trim(ms.input.val()).length > 0 &&
+                (!cfg.maxEntryLength || $.trim(ms.input.val()).length <= cfg.maxEntryLength);
+
+                if(inputValid === true && ms.getRawValue() !== '' && cfg.allowFreeEntries === true){
                     var obj = {};
                     obj[cfg.displayField] = obj[cfg.valueField] = $.trim(ms.getRawValue());
                     ms.addToSelection(obj);
